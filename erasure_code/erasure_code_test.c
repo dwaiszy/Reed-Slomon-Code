@@ -694,7 +694,10 @@ struct{
 unsigned char* binRep(int n, int t){
    
     unsigned char* vec = (unsigned char*) malloc(t*sizeof(unsigned char));
-	if (vec == NULL) return NULL;
+	if (vec == NULL){
+		printf("Error: Allocate fail vec-binrep");
+		free(vec);
+	}
    
     for (int i = 1; i <= t; i++){
         vec[t-i] = n & 1;
@@ -718,7 +721,7 @@ unsigned char binSum( int x, int y)
 	
 	if (p1 == NULL) { 
         printf("Memory not allocated.\n"); 
-        exit(0); 
+        free(p1);
     } 
 
 
@@ -733,7 +736,7 @@ unsigned char binSum( int x, int y)
 	p2 = binRep(y, 8);
 	if (p2 == NULL) { 
         printf("Memory not allocated.\n"); 
-        exit(0); 
+        free(p2);
     } 
     
 
