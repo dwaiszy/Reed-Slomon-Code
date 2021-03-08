@@ -39,7 +39,7 @@
 //add
 
 #define TEST_SOURCES 127
-#define TEST_LEN 1000000
+#define TEST_LEN 1
 #define BIN_LEN 8
 
 //end add
@@ -693,7 +693,7 @@ struct{
 
 unsigned char* binRep(int n, int t){
    
-    unsigned char* vec = (unsigned char*) malloc(8*sizeof(unsigned char));
+    unsigned char* vec = (unsigned char*)malloc(8*sizeof(unsigned char));
 	if (vec == NULL){
 		printf("Error: Allocate fail vec-binrep");
 		free(vec);
@@ -703,6 +703,8 @@ unsigned char* binRep(int n, int t){
         vec[t-i] = n & 1;
         n = n >> 1;
     }
+    
+    free(vec);
 	
     return vec;
 }
@@ -713,23 +715,23 @@ unsigned char binSum( int x, int y)
 { 
     int i;
 	unsigned char *p1;
-	p1 = (unsigned char*)malloc(8*sizeof(unsigned char));
+	//p1 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p1 =  binRep(x, 8);
 	
 	
-	if (p1 == NULL) { 
-        printf("Memory not allocated.\n"); 
-        free(p1);
-    } 
+	//if (p1 == NULL) { 
+        //printf("Memory not allocated.\n"); 
+        //free(p1);
+    //}/
 
 
 	unsigned char *p2;
-    p2 = (unsigned char*)malloc(8*sizeof(unsigned char));
+    //p2 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p2 = binRep(y, 8);
-	if (p2 == NULL) { 
-        printf("Memory not allocated.\n"); 
-        free(p2);
-    } 
+	//if (p2 == NULL) { 
+        //printf("Memory not allocated.\n"); 
+        //free(p2);
+    //} 
     
 
 	bit_field.traceSum = 0;
@@ -759,9 +761,9 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 	unsigned char rev, trace;
 
     //H stands for Helper node, R stands for recover node
-	vec = (unsigned char*) malloc(8*sizeof(unsigned char));
-	if (vec == NULL)
-		printf("\n Fail: Vec pointer is Null");
+	//vec = malloc(8*sizeof(unsigned char));
+	//if (vec == NULL)
+		//printf("\n Fail: Vec pointer is Null");
     bw = 0;
 
 
@@ -928,11 +930,10 @@ int main(int argc, char *argv[])
 	// Test erasure code by encode and recovery
 
 	encode_matrix = malloc(MMAX * KMAX);
-	decode_matrix = malloc(MMAX * KMAX);
-	invert_matrix = malloc(MMAX * KMAX);
+	//decode_matrix = malloc(MMAX * KMAX);
+	//invert_matrix = malloc(MMAX * KMAX);
 	g_tbls = malloc(KMAX * TEST_SOURCES * 32);
-	if (encode_matrix == NULL || decode_matrix == NULL
-	    || invert_matrix == NULL || g_tbls == NULL) {
+	if (encode_matrix == NULL || g_tbls == NULL) {
 		printf("Test failure! Error with malloc\n");
 		return -1;
 	}
