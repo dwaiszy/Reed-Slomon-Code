@@ -39,7 +39,7 @@
 //add
 
 #define TEST_SOURCES 127
-#define TEST_LEN 1
+#define TEST_LEN 1000000
 #define BIN_LEN 8
 
 //end add
@@ -693,7 +693,7 @@ struct{
 
 unsigned char* binRep(int n, int t){
    
-    unsigned char* vec = (unsigned char*) malloc(t*sizeof(unsigned char));
+    unsigned char* vec = (unsigned char*) malloc(8*sizeof(unsigned char));
 	if (vec == NULL){
 		printf("Error: Allocate fail vec-binrep");
 		free(vec);
@@ -703,7 +703,7 @@ unsigned char* binRep(int n, int t){
         vec[t-i] = n & 1;
         n = n >> 1;
     }
-	free(vec);
+	
     return vec;
 }
 
@@ -712,10 +712,8 @@ unsigned char* binRep(int n, int t){
 unsigned char binSum( int x, int y)
 { 
     int i;
-	//unsigned char r1[8], r2[8];
-
 	unsigned char *p1;
-	p1 = (unsigned char*)malloc(1*sizeof(unsigned char));
+	p1 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p1 =  binRep(x, 8);
 	
 	
@@ -725,14 +723,8 @@ unsigned char binSum( int x, int y)
     } 
 
 
-    for ( i = 0; i < 8; i++)
-    {
-        //r1[i] = p1[i];
-		printf(" %u ", p1[i]);
-    }
-
 	unsigned char *p2;
-    p2 = (unsigned char*)malloc(1*sizeof(unsigned char));
+    p2 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p2 = binRep(y, 8);
 	if (p2 == NULL) { 
         printf("Memory not allocated.\n"); 
@@ -740,19 +732,12 @@ unsigned char binSum( int x, int y)
     } 
     
 
-    for ( i = 0; i < 8; i++)
-    {
-        //r2[i] = p2[i];
-		printf(" *%u* ", p2[i]);
-    }
-
 	bit_field.traceSum = 0;
 	for(i = 0; i < 8; i++){
 		bit_field.traceSum ^= (p1[i]*p2[i]);
 	}
 
-	free(p2);
-	free(p1);
+
     return bit_field.traceSum;
 }
 
@@ -779,7 +764,6 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		printf("\n Fail: Vec pointer is Null");
     bw = 0;
 
-	clock_t hi = clock();
 
     //Calculate bandwidth using H table
 	//printf("Bandwidth: ");
@@ -791,15 +775,15 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 				continue;
 			}
 			bi[i] = bw;
-			printf("[%d]: %u  ",i, bi[i]);
+			//printf("[%d]: %u  ",i, bi[i]);
 		}
 		
 		
 		//print Cj
-		for(i = 0; i <block; i++){
+		/*for(i = 0; i <block; i++){
 			printf("\nC_j[%d]: %u",i, *buffs[i]);
 		}
-		printf("\n");
+		printf("\n");*/
 
 		//Calculate traces to send to Node j (H table)
 		//printf("\nRepair Traces: \n");
@@ -807,30 +791,25 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 			if( i != j){
 				for (a = 0; a < bi[i]; a++){
 					RepairTr[i][a] = binSum(htbl[i][j][a+1], (int)*buffs[i]);
-					/*for ( b = 0; b < 8; b++){
-						bit_field.traceSum ^= (*binRep(htbl[i][j][a+1], 8))*(*binRep((int)*buffs[i], 8));
-					}
-
-					RepairTr[i][a] = bit_field.traceSum;*/
-					printf(" %u ", RepairTr[i][a]);
+					//printf(" %u ", RepairTr[i][a]);
 				}
 			}
 			else
 			{
 				continue;
 			}
-			printf("\n");
+			//printf("\n");
 		}
-	clock_t bye = clock();
+
 	/*printf("Elapsed (htbl): %f seconds\n", (double)(bye - hi) / CLOCKS_PER_SEC);
 	printf("-----------------------------------------\n");
 	exit(0);*/
 
-	printf("\n");
-	//END
+	//printf("\n");
+	
 
 	//Recover node generates Column traces using R table
-	printf("Column Tr: \n");
+	//printf("Column Tr: \n");
     for (i = 0; i < block; i++){
 		if (i != j){
 			unsigned char* p = RepairTr[i];
@@ -851,10 +830,10 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 				
 				//printf("\n");
 				ColumnTr[i][s] = result;
-				printf(" %u ", ColumnTr[i][s]);
+				//printf(" %u ", ColumnTr[i][s]);
 				//printf("\n");	
 			}
-			printf("\n");
+			//printf("\n");
     	}
 		else{
 
@@ -864,7 +843,7 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 
 	
 	//Construct t Target Traces
-	printf("\nTarget tr: \n");
+	//printf("\nTarget tr: \n");
 	for (s = 0; s < 8; s++){
 		bit_field.rh = 0;//0*Z(q)
 		for (i = 0; i < block; i++){
@@ -878,10 +857,10 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		}
 		//printf("\n");
 		TargetTr[s] = bit_field.rh; 
-		printf(" %u |",TargetTr[s]);
+		//printf(" %u |",TargetTr[s]);
 	} 
 
-	printf("\n\n");
+	//printf("\n\n");
 	//Assume that we obtained D table assigned as dtbl
 	rev = 0; //0*Z(q)
 	for(s = 0; s < 8; s++){
@@ -895,15 +874,15 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		}
 		
 	}
-	printf("\nrev: %u", rev);
+	//printf("\nrev: %u", rev);
 	
-	if(rev==(*buffs[j]))
+	/*if(rev==(*buffs[j]))
 		printf(" TRUE ");
 	else
-		printf(" FALSE ");
+		printf(" FALSE ");*/
 
-	printf("\n");
-	free(vec);
+	//printf("\n");
+	
 	return rev;
 }
 
