@@ -39,10 +39,9 @@
 //add
 
 #define TEST_SOURCES 127
-#define TEST_LEN 100000
+#define TEST_LEN 1000000
 #define BIN_LEN 8
-//100.000 = 1.2->1.5s
-//0.015
+
 //end add
 
 #define TEST_SIZE (TEST_LEN/2)
@@ -107,9 +106,7 @@
 #include <limits.h>
 #include <string.h>		// for memset
 #include "erasure_code.h"
-#include "ec_base.h"		// for GF tables'#include<sys/time.
-
-
+#include "ec_base.h"		// for GF tables
 
 void ec_init_tables(int k, int rows, unsigned char *a, unsigned char *g_tbls)
 {
@@ -136,7 +133,6 @@ unsigned char gf_mul(unsigned char a, unsigned char b)
 	return gf_mul_table_base[b * 256 + a];
 #endif
 }
-
 
 
 unsigned char gf_inv(unsigned char a)
@@ -243,7 +239,7 @@ int gf_invert_matrix(unsigned char *in_mat, unsigned char *out_mat, const int n)
 	return 0;
 }
 
-//
+// 	
 // gftbl(A) = {A{00}, A{01}, A{02}, ... , A{0f} 15 }, {A{00}, A{10}, A{20}, ... , A{f0} 240 }
 
 void gf_vect_mul_init(unsigned char c, unsigned char *tbl)
@@ -295,7 +291,7 @@ void gf_vect_mul_init(unsigned char c, unsigned char *tbl)
 	c9 = c8 ^ c;
 	c10 = c8 ^ c2;
 	c11 = c8 ^ c3;
-	c12 = c8 ^ c4;
+	c12 = c8 ^ c4; 
 	c13 = c8 ^ c5;
 	c14 = c8 ^ c6;
 	c15 = c8 ^ c7;
@@ -318,11 +314,11 @@ void gf_vect_mul_init(unsigned char c, unsigned char *tbl)
 	tbl[15] = c15;
 
 	c17 = (c8 << 1) ^ ((c8 & 0x80) ? 0x1d : 0);
-	 /*if c8 > 128 -> XOR 29.
+	 /*if c8 > 128 -> XOR 29. 
     Else XOR 0
 
-    case 1: c8 << 1 XOR 29
-    case 2: c8 << 1 XOR 0*/
+    case 1: c8 << 1 XOR 29 
+    case 2: c8 << 1 XOR 0*/ 
 	c18 = (c17 << 1) ^ ((c17 & 0x80) ? 0x1d : 0);	//Mult by GF{2}//29 = 0001 1101
 	c19 = c18 ^ c17;
 	c20 = (c18 << 1) ^ ((c18 & 0x80) ? 0x1d : 0);	//Mult by GF{2}
@@ -358,21 +354,47 @@ void gf_vect_mul_init(unsigned char c, unsigned char *tbl)
 #endif //__WORDSIZE == 64 || _WIN64 || __x86_64__
 }
 
+void gf_vect_dot_prod_base(int len, int vlen, unsigned char *v,
+			   unsigned char **src, unsigned char *dest)
+{
+	int i, j;
+	unsigned char s;
+	for (i = 0; i < len; i++) {
+		s = 0;
+		for (j = 0; j < vlen; j++)
+			s ^= gf_mul(src[j][i], v[j * 32 + 1]);
+
+		dest[i] = s;
+	}
+}
+
+void gf_vect_mad_base(int len, int vec, int vec_i,
+		      unsigned char *v, unsigned char *src, unsigned char *dest)
+{
+	int i;
+	unsigned char s;
+	for (i = 0; i < len; i++) {
+		s = dest[i];
+		s ^= gf_mul(src[i], v[vec_i * 32 + 1]);
+		dest[i] = s;
+	}
+}
+
 
 void ec_encode_data_base(int len, int srcs, int dests, unsigned char *v,
 			unsigned char **src, unsigned char **dest)
-
+			
 //Len: Length of each block of data (vector) of source or dest data.
 //srcs (k): The number of vector sources or rows in the generator matrix for coding
 //dests (rows): The number of output vectors to concurrently encode/decode.
-//v(g_tbls): Pointer to array of input tables generated from coding coefficients in ec_init_tables().
+//v(g_tbls): Pointer to array of input tables generated from coding coefficients in ec_init_tables(). 
 //Must be of size 32*k*rows
 //src (data): Array of pointers to source input buffers.
 //dest (coding): Array of pointers to coded output buffers.
 {
 	int i, j, l;
 	unsigned char s;
-
+	
 	for (l = 0; l < dests; l++) { // l = 1
 		for (i = 0; i < len; i++) { // i = 0
 			s = 0;
@@ -401,6 +423,14 @@ void ec_encode_data_update_base(int len, int k, int rows, int vec_i, unsigned ch
 	} //&buff[i]
 }
 
+
+void gf_vect_mul_base(int len, unsigned char *a, unsigned char *src, unsigned char *dest)
+{
+	//2nd element of table array is ref value used to fill it in
+	unsigned char c = a[1];
+	while (len-- > 0)
+		*dest++ = gf_mul(c, *src++);
+}
 
 struct slver {
 	unsigned short snum;
@@ -502,7 +532,7 @@ static void gen_err_list(unsigned char *src_err_list,
 			nsrcerrs = 1;
 	}
 	*pnerrs = nerrs;
-	*pnsrcerrs = nsrcerrs;// number of data error
+	*pnsrcerrs = nsrcerrs;// number of data error 
 	return;
 }
 
@@ -521,9 +551,9 @@ static int gf_gen_decode_matrix(unsigned char *encode_matrix,
 	unsigned char *backup, *b, s;
 	int incr = 0;
 
-	b = malloc(MMAX * KMAX);
-	//MALLOC: or “memory allocation” method in C is used to dynamically allocate
-	//a single large block of memory with the specified size.
+	b = malloc(MMAX * KMAX); 
+	//MALLOC: or “memory allocation” method in C is used to dynamically allocate 
+	//a single large block of memory with the specified size. 
 	//It returns a pointer of type void which can be cast into a pointer of any form.
 	// It initializes each block with default garbage value
 
@@ -531,10 +561,10 @@ static int gf_gen_decode_matrix(unsigned char *encode_matrix,
 
 	if (b == NULL || backup == NULL) {
 		printf("Test failure! Error with malloc\n");
-		free(b);
+		free(b); 
 		free(backup);
-		//is used to dynamically de-allocate the memory.
-		//The memory allocated using functions malloc() is not de-allocated on their own.
+		//is used to dynamically de-allocate the memory. 
+		//The memory allocated using functions malloc() is not de-allocated on their own. 
 		//Hence the free() method is used. helps to reduce wastage of memory by freeing it
 		return -1;
 	}
@@ -553,8 +583,8 @@ static int gf_gen_decode_matrix(unsigned char *encode_matrix,
 		}
 		decode_index[i] = r; //non erased data location
 	}
-	incr = 0;
-
+	incr = 0; 
+	
 	while (gf_invert_matrix(b, invert_matrix, k) < 0) {
 		if (nerrs == (m - k)) {
 			free(b);
@@ -583,12 +613,12 @@ static int gf_gen_decode_matrix(unsigned char *encode_matrix,
 
 	};
 
-	//non parity decoding. eg recover data that has index < k
+	//non parity decoding. eg recover data that has index < k 
 	for (i = 0; i < nsrcerrs; i++) {
 		for (j = 0; j < k; j++) {
 			decode_matrix[k * i + j] = invert_matrix[k * src_err_list[i] + j];
 		}
-	}
+	}	
 	/* src_err_list from encode_matrix * invert of b for parity decoding */
 	for (p = nsrcerrs; p < nerrs; p++) { //nserrs: number of erased data unit , nerrs: Erased index
 		for (i = 0; i < k; i++) {
@@ -604,7 +634,27 @@ static int gf_gen_decode_matrix(unsigned char *encode_matrix,
 	free(backup);
 	return 0;
 }
-/********************************************************************************/
+
+//Not in use
+/*int binRep(unsigned char N) 
+{ 
+    // To store the binary number 
+    int B_Number = 0; 
+    int c;
+    int count = 0; 
+
+    while (N != 0) { 
+        int rem = N % 2; 
+        c = pow(10, count); 
+
+        B_Number += rem * c; 
+
+        N /= 2; 
+        count++; 
+    }
+    return B_Number;
+}*/
+
 
 //Decalre traceSum variable as 1 bit
 struct{
@@ -617,8 +667,8 @@ struct{
 //Input m and return t-bit (array). For ColumnTrc calculation
 /*unsigned char *binRep(int m, int t){
 
-    int q;
-    int i, log;
+    int q; 
+    int i, log; 
     static unsigned char bin[8];
 
     if (m < 0 || m > pow(2, (t))-1){
@@ -633,7 +683,7 @@ struct{
         bin[t-log-1] = 1;
         m = m - pow(2, log);
     }
-
+    
     if( m == 1){
         bin[t-1] = 1;
     }
@@ -641,90 +691,96 @@ struct{
 
 }*/
 
-unsigned char *binRep(unsigned char n, int t){
-
-    unsigned char* vec = (unsigned char*)malloc(8*sizeof(unsigned char));
+unsigned char* binRep(int n, int t){
+   
+    unsigned char* vec = (unsigned char*) malloc(8*sizeof(unsigned char));
 	if (vec == NULL){
 		printf("Error: Allocate fail vec-binrep");
 		free(vec);
 	}
-
+   
     for (int i = 1; i <= t; i++){
         vec[t-i] = n & 1;
         n = n >> 1;
     }
+	
     return vec;
 }
 
 
-/*int mul(int n, int m)
-{
-    int ans = 0, count = 0;
-    while (m)
-    {
-        // check for set bit and left 
-        // shift n, count times
-        if (m % 2 == 1)              
-            ans += n << count;
- 
-        // increment of place value (count)
-        count++;
-        m /= 2;
-    }
-    return ans;
-}*/
-
-
 //Sum a 8-bits variable into 1-bit variable
-unsigned char binSum( unsigned char x, int y)
-{
+unsigned char binSum( int x, int y)
+{ 
     int i;
 	unsigned char *p1;
+	p1 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p1 =  binRep(x, 8);
+	
+	
+	if (p1 == NULL) { 
+        printf("Memory not allocated.\n"); 
+        free(p1);
+    } 
+
 
 	unsigned char *p2;
+    p2 = (unsigned char*)malloc(8*sizeof(unsigned char));
 	p2 = binRep(y, 8);
+	if (p2 == NULL) { 
+        printf("Memory not allocated.\n"); 
+        free(p2);
+    } 
+    
 
 	bit_field.traceSum = 0;
 	for(i = 0; i < 8; i++){
 		bit_field.traceSum ^= (p1[i]*p2[i]);
 	}
 
-	free(p1);
-	free(p2);
+
     return bit_field.traceSum;
 }
 
-
+      
 
 //MAIN FUNCTION: Helper Node Banwidth calculation and Generate Traces from Helper Node to send to Recover Node
-unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs,
-					unsigned char htbl[][9][72], unsigned char rtbl[][9][72], unsigned char dtbl[][8]){
+unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs, 
+					int htbl[][9][9],int rtbl[][9][9],int dtbl[][8]){
 
-	int a, b; // for FOR loop
-  	int bw, i, s, vi;
+	int a, b; // for FOR loop 
+    unsigned int bw;
+	int s, vi; 
+	int i;
 	unsigned char bi[MMAX];
-	unsigned char *vec, *p;
-	unsigned char result,rev;
-	unsigned char RepairTr[MMAX][8], ColumnTr[MMAX][8], TargetTr[MMAX];
+	unsigned char *vec;
+	unsigned char RepairTr[MMAX][8];
+	unsigned char ColumnTr[MMAX][8];
+	unsigned char TargetTr[MMAX];
+	unsigned char rev, trace;
+
+    //H stands for Helper node, R stands for recover node
+	vec = (unsigned char*) malloc(8*sizeof(unsigned char));
+	if (vec == NULL){
+		printf("\n Fail: Vec pointer is Null");
+		free(vec);
+	}
+    bw = 0;
 
 
- 	bw = 0;
     //Calculate bandwidth using H table
 	//printf("Bandwidth: ");
     for (i = 0; i < block; i++){
 			if (i != j){
 				bw = htbl[i][j][0];
 			}
-			else
-			{
+			else{
 				continue;
 			}
 			bi[i] = bw;
 			//printf("[%d]: %u  ",i, bi[i]);
 		}
-
-
+		
+		
 		//print Cj
 		/*for(i = 0; i <block; i++){
 			printf("\nC_j[%d]: %u",i, *buffs[i]);
@@ -732,26 +788,11 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		printf("\n");*/
 
 		//Calculate traces to send to Node j (H table)
-
-		unsigned char *buffs_p;
 		//printf("\nRepair Traces: \n");
-		for (i = 0; i < block ; i++){
-			 
+		for (i = 0; i < block ; i++){ 
 			if( i != j){
 				for (a = 0; a < bi[i]; a++){
-					//RepairTr[i][a] = binSum(htbl[i][j][a+1], (int)*buffs[i]);
-
-					bit_field.traceSum = 0;
-
-					buffs_p = binRep(*buffs[i], 8);
-					for(b = 0; b < 8; b++){
-						bit_field.traceSum ^= (htbl[i][j][(a+1)*8+b]*(buffs_p[b]));
-						//printf(" %u x %u ", htbl[i][j][(a+1)*8+b], (buffs_p[b]));
-					}
-
-					RepairTr[i][a] = bit_field.traceSum;
-					
-					free(buffs_p);
+					RepairTr[i][a] = binSum(htbl[i][j][a+1], (int)*buffs[i]);
 					//printf(" %u ", RepairTr[i][a]);
 				}
 			}
@@ -762,38 +803,37 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 			//printf("\n");
 		}
 
+	/*printf("Elapsed (htbl): %f seconds\n", (double)(bye - hi) / CLOCKS_PER_SEC);
+	printf("-----------------------------------------\n");
+	exit(0);*/
+
+	//printf("\n");
+	
 
 	//Recover node generates Column traces using R table
 	//printf("Column Tr: \n");
-
-	
     for (i = 0; i < block; i++){
-		int gap = 0;
 		if (i != j){
-			p = RepairTr[i];
-			
+			unsigned char* p = RepairTr[i];
         	for (s = 0; s < 8; s++){
-				//vi = rtbl[i][j][s];
+				vi = rtbl[i][j][s]; 
 				//printf(" vi : %u ", vi);
-				//vec = binRep(vi, htbl[i][j][0]);
-				
-				//Print test BinRep
+				vec = binRep(vi, htbl[i][j][0]);
+
+				//Print test BinRep 
 				//printf(" Vec [%d] * P[a]: ", s);
-				
+
+				unsigned char result;
 				result = 0;
 				for(a = 0; a < bi[i]; a++){
-					//result ^= (vec[a]*p[a]);
-					vi = rtbl[i][j][gap];
-					result ^= (vi*p[a]);
-					gap++;
-					//printf(" (%u * %u) ^ ", vi, p[a]); // p[a] is the basis, vec is the coef vector
+					result ^= (vec[a]*p[a]);
+					//printf(" (%u * %u) ^ ", vec[a], p[a]); // p[a] is the basis, vec is the coef vector
 				}
-				//free(vec);
-
-				ColumnTr[i][s] = result;
-				//printf(" %u ", ColumnTr[i][s]);
 				
 				//printf("\n");
+				ColumnTr[i][s] = result;
+				//printf(" %u ", ColumnTr[i][s]);
+				//printf("\n");	
 			}
 			//printf("\n");
     	}
@@ -803,7 +843,7 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		}
 	}
 
-
+	
 	//Construct t Target Traces
 	//printf("\nTarget tr: \n");
 	for (s = 0; s < 8; s++){
@@ -813,15 +853,14 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 				bit_field.rh ^= ColumnTr[i][s];
 				//printf(" %u ", ColumnTr[i][s]);
 			}
-			else
-			{
+			else{
 				continue;
 			}
 		}
 		//printf("\n");
-		TargetTr[s] = bit_field.rh;
+		TargetTr[s] = bit_field.rh; 
 		//printf(" %u |",TargetTr[s]);
-	}
+	} 
 
 	//printf("\n\n");
 	//Assume that we obtained D table assigned as dtbl
@@ -830,24 +869,24 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 		if(TargetTr[s] != 0){
 			rev ^=dtbl[j][s];
 			//printf(" dtbl[%d]: %d ",s,dtbl[j][s]);
-
-		}
+			
+		}	
 		else{
 			continue;
 		}
-
+		
 	}
 	//printf("\nrev: %u", rev);
-
+	
 	/*if(rev==(*buffs[j]))
 		printf(" TRUE ");
 	else
 		printf(" FALSE ");*/
 
+	//printf("\n");
+	
 	return rev;
 }
-
-
 
 
 int main(int argc, char *argv[])
@@ -894,39 +933,42 @@ int main(int argc, char *argv[])
 	decode_matrix = malloc(MMAX * KMAX);
 	invert_matrix = malloc(MMAX * KMAX);
 	g_tbls = malloc(KMAX * TEST_SOURCES * 32);
-	if (encode_matrix == NULL ||decode_matrix == NULL 
-		|| invert_matrix == NULL || g_tbls == NULL) {
+	if (encode_matrix == NULL || decode_matrix == NULL
+	    || invert_matrix == NULL || g_tbls == NULL) {
 		printf("Test failure! Error with malloc\n");
 		return -1;
-	};
-	
+	}
 
-	m = 9;
+	// Pick a test 
+	/*printf("Enter m: ");
+	scanf("%d", &m);
+
+	printf("Enter k: ");
+	scanf("%d", &k);*/
+	m = 9; 
 	k = 6;
 
 	if (m > MMAX || k > KMAX)
 		return -1; //exit
 
-	clock_t tic = clock();
-	//clock_t start = clock();
 
 	//printf("RANDOM DATA: \n");
 	for (i = 0; i < k; i++){ //i is the dataword lengths
-		for (j = 0; j < TEST_LEN; j++)
+		for (j = 0; j < TEST_LEN; j++) 
 		{
-			buffs[i][j] = rand();
-
-			/*printf("%u ", buffs[i][j]);B
+			buffs[i][j] = rand(); 
+			/*printf("%u ", buffs[i][j]);
 			if ((j % TEST_LEN) == TEST_LEN-1)
 			printf("\n");*/
 		}
 	}
 
-	
+	clock_t tic = clock();	
+	clock_t start = clock();
 	//printf("\n");
 	// Generate encode matrix encode_matrix
 	// The matrix generated by gf_gen_rs_matrix
-	gf_gen_cauchy1_matrix(encode_matrix, m, k);
+	gf_gen_cauchy1_matrix(encode_matrix, m, k); 
 	//output: encode_matrix
 
 	/*printf("GENERATOR MATRIX: \n");
@@ -938,15 +980,14 @@ int main(int argc, char *argv[])
 	}
 	printf("\n");*/
 
-	
 	// Generate g_tbls from encode matrix
-	ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
+	ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls); 
 	// gf_vect_mul_init: Calculates const table gftbl in GF(2^8) from single input A
 	//m - k = rows = the number of output vector, e.g., 9 - 5 = 4
 	//&encode_matrix[k * k]: Pointer to sets of arrays of input coefficients used to encode or decode data
 	//g_tbls: Pointer to start of space for concatenated output tables
  	//generated from input coefficients.  Must be of size 32*k*rows
-
+	
 	/*printf("Initial table: \n");
 	for (i = 0; i < (32*(k*(m-k))); i++)
 	{
@@ -976,40 +1017,31 @@ int main(int argc, char *argv[])
 			printf("\n");
 		}
 	}
-
+	
 	printf("\n");*/
 	
+	j = 2;
+	//printf("\nNode n0. %d is erased!\n\n", j);
 
-	/*for(j = 0; j < 9; j++){
-		
-		unsigned char rec;
-		for(int a = 0; a < TEST_LEN; a++){
-			rec = repair_trace(9, 9, 9, j, buffs, h_htbl, h_rtbl, h_dtbl);
-		}
+	unsigned char rec;
+	for(int a = 0; a < TEST_LEN; a++){
+		rec = repair_trace(9, 9, 9, j, buffs, h_htbl, h_rtbl, h_dtbl);
 	}
-
-
 	clock_t finish = clock();
-	
 	printf("-----------------------------------------\n");
-    printf("Elapsed (Repair_scheme): %.10f seconds\n", 1.0*((double)(finish - start) / CLOCKS_PER_SEC)/9);
-	//printf("Run time (Rpair Trace): %d micro seconds\n",elapsed);
-	printf("-----------------------------------------\n");*/
-	
+    printf("Elapsed (Repair_scheme): %f seconds\n", (double)(finish - start) / CLOCKS_PER_SEC);
+	printf("-----------------------------------------\n");
 
 
-	
-	
 	// Choose random buffers to be in erasure
-	memset(src_in_err, 0, TEST_SOURCES);
+	/*memset(src_in_err, 0, TEST_SOURCES);
 	//Fill whole src_in_err array with 0
 	//TEST_SOURCE: Number of byte to be filled starting from src_in_err to be filled
 
-	//Add errorsposix_memalign
-	gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-	
-	
-	// Generate decode matrix from encode matrix
+	//Add errors
+	gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m); 
+
+	// Generate decode matrix from encode matrix 
 	re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
 				  invert_matrix, decode_index, src_err_list, src_in_err,
 				  nerrs, nsrcerrs, k, m);
@@ -1027,15 +1059,15 @@ int main(int argc, char *argv[])
 	for (p = 0; p < k; p++){
 		printf(" %d", decode_index[p]);
 	}
-
+	
 	printf("\n \n");
-	printf("nsrcerrs (number of original data error): %u \n", nsrcerrs);
+	printf("nsrcerrs (number of original data error): %u \n", nsrcerrs); 
 	//mean the data are erasured that is in original data. Eg: lost data where<k.
 	printf("nerrs (number of erased data): %u \n", nerrs);
 	printf("\n");
 
 
-	//Generate invert matrix
+	//Generate invert matrix 
 	printf("INVERT MATRIX: \n");
 	for (i = 0; i < k*k; i++){
 		printf(" %u", invert_matrix[i]);
@@ -1045,7 +1077,7 @@ int main(int argc, char *argv[])
 	printf("\n");*/
 
 
-	//Generate decode matrix
+	//Generate decode matrix 
 	/*printf("DECODE MATRIX: \n");
 	for (i = 0; i < nsrcerrs; i++){
 		for(j = 0; j <k; j++ ){
@@ -1061,14 +1093,14 @@ int main(int argc, char *argv[])
 		}
 	}
 	printf("\n");*/
-
+		
 
 	// Pack recovery array as list of valid sources
 	// Its order must be the same as the order
 	// to generate matrix b in gf_gen_decode_matrix
 
 	//printf("Recovery index: ");
-	for (i = 0; i < k; i++) {
+	/*for (i = 0; i < k; i++) {
 		recov[i] = buffs[decode_index[i]];
 		//printf("%u ", *recov[i]);
 	}
@@ -1076,7 +1108,7 @@ int main(int argc, char *argv[])
 	//printf("\n \n");
 
 	// Recover data
-	ec_init_tables(k, nerrs, decode_matrix, g_tbls); //Generate or decode erasure codes on blocks of data
+	/*ec_init_tables(k, nerrs, decode_matrix, g_tbls); //Generate or decode erasure codes on blocks of data
 	/*printf("Initial table (recover part): \n");
 	for (i = 0; i < 32*(k*(m-k)); i++)
 	{
@@ -1086,13 +1118,10 @@ int main(int argc, char *argv[])
 	}
 	printf("\n");*/
 
-	ec_encode_data(TEST_LEN, k, nerrs, g_tbls, recov, &temp_buffs[k]);// nerrs = rows, recov = data,
-	//gettimeofday(&bye,NULL);
+	/*ec_encode_data(TEST_LEN, k, nerrs, g_tbls, recov, &temp_buffs[k]);// nerrs = rows, recov = data, 
 	clock_t toc = clock();
-	printf("Elapsed (ISA-L): %.10f seconds\n", 1.0*((double)(toc - tic) / CLOCKS_PER_SEC)/3);
-	//int elapsed1 = (((bye.tv_sec - hi.tv_sec) * 1000000) + (bye.tv_usec - hi.tv_usec)) / TEST_LEN;
-	//printf("Run time (ISA-L): %d micro seconds\n",elapsed1);
-	printf("-----------------------------------------\n");
+	printf("Elapsed(isa-l): %f seconds|\n", (double)(toc - tic) / CLOCKS_PER_SEC);
+	printf("-----------------------------------------\n");*/
 	/*for (i = 0; i < nerrs; i++){
 		printf("RECOVER %u: \n", src_err_list[i]);
 		dump(temp_buffs[k + i], TEST_LEN);
@@ -1100,9 +1129,9 @@ int main(int argc, char *argv[])
 	printf("\n");*/
 
 
+	
 
-
-
+	
 
 	/*for (i = 0; i < nerrs; i++) {
 
@@ -1127,10 +1156,10 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 	}*/
-
+	
 	//printf("\nEnter j: ");
 	//scanf("%d", &j);
-
+	
 	/*m = 9;
 	k = 5;
 	if (m > MMAX || k > KMAX)

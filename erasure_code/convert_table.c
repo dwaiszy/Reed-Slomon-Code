@@ -3,48 +3,71 @@
 #include<math.h>
 #include"repair_scheme_tbl.h"
 
-unsigned char *binGap(int t, int m){
+/*void decToHexa(unsigned char n)
+{  
+    char hexaDeciNum[100];
+    
 
-    int q; 
-    int i, log; 
-    static unsigned char bin[8];
-
-
-    for (i = 0; i < (t); i++){
-        bin[i] = 0;
+    if(n == 0){
+        printf("0x00, ");
     }
-    while ( m > 1){
-        log = log2(m);
-        bin[t-log-1] = 1;
-        m = m - pow(2, log);
+
+    int i = 0;
+    while (n != 0) {
+        int temp = 0;
+        temp = n % 16;
+        if (temp < 10) {
+            hexaDeciNum[i] = temp + 48;
+            i++;
+        }
+        else {
+            hexaDeciNum[i] = temp + 55;
+            i++;
+        }
+        n = n / 16;
     }
     
-    if( m == 1){
-        bin[t-1] = 1;
+    printf("0x");
+    for (int j = i - 1; j >= 0; j--){
+        
+        printf("%c", hexaDeciNum[j]);
     }
-    return bin;
-
+    printf(", ");
 }
+*/
+
+unsigned char *binRep(unsigned char n, unsigned char t){
+
+    unsigned char* vec = (unsigned char*)malloc(8*sizeof(unsigned char));
+	if (vec == NULL){
+		printf("Error: Allocate fail vec-binrep");
+		free(vec);
+	}
+
+    for (int i = 1; i <= t; i++){
+        vec[t-i] = n & 1;
+        n = n >> 1;
+    }
+    return vec;
+}
+
 
 int main(){
     int i, j, z;
-    unsigned char *p1;
-    unsigned char htbl[9][9][9];
+    unsigned char *p;
+    int vi;
 
 
-    for (i = 0; i < 9; i++){
+    for (i = 0; i < 9; i++){ 
         printf("{");
         for (j = 0; j < 9; j++){
             printf("{ ");
-            for (z = 0; z < 9; z++){
-                //printf("%u, ", h_htbl[i][j][z]);
-                p1 = binGap(8, h_htbl[i][j][z]);
-                for(int l = 0; l < 8; l++){
-                    htbl[i][j][z] = p1[l];
-                    printf("%u,", p1[l]);
+            for(z = 0; z < 9; z++){
+                p = binRep(h_rtbl[i][j][z], h_htbl[i][j][0]);
+                for( int l = 0; l < h_htbl[i][j][0]; l++){
+                    printf("%u, ", p[l]);
                 }
-                printf(" ");
-                 
+                printf("| ");
             }
             printf("}, \n");
         }
