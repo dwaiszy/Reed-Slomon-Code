@@ -41,6 +41,10 @@
 #define TEST_SOURCES 127
 #define TEST_LEN 100000
 #define BIN_LEN 8
+
+#define SetBit(A,k)     ( A[(k/8)] |= (1 << (k%8)) )
+#define ClearBit(A,k)   ( A[(k/8)] &= ~(1 << (k%8)) )
+#define TestBit(A,k)    ( A[(k/8)] & (1 << (k%8)) )
 //100.000 = 1.2->1.5s
 //0.015
 //end add
@@ -75,37 +79,6 @@
 #define TEST_SEED 11
 #endif
 
-/**********************************************************************
-  Copyright(c) 2011-2015 Intel Corporation All rights reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions
-  are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in
-      the documentation and/or other materials provided with the
-      distribution.
-    * Neither the name of Intel Corporation nor the names of its
-      contributors may be used to endorse or promote products derived
-      from this software without specific prior written permission.
-
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-**********************************************************************/
-
-#include <limits.h>
-#include <string.h>		// for memset
 #include "erasure_code.h"
 #include "ec_base.h"		// for GF tables'#include<sys/time.
 
@@ -644,10 +617,10 @@ struct{
 unsigned char *binRep(unsigned char n, int t){
 
     unsigned char* vec = (unsigned char*)malloc(8*sizeof(unsigned char));
-	if (vec == NULL){
+	/*if (vec == NULL){
 		printf("Error: Allocate fail vec-binrep");
 		free(vec);
-	}
+	}*/
 
     for (int i = 1; i <= t; i++){
         vec[t-i] = n & 1;
@@ -698,156 +671,106 @@ unsigned char binSum( unsigned char x, int y)
 
 
 //MAIN FUNCTION: Helper Node Banwidth calculation and Generate Traces from Helper Node to send to Recover Node
-unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs,
-					unsigned char htbl[][9][72], unsigned char rtbl[][9][72], unsigned char dtbl[][8]){
-
+//test_codeword runs from 0 to TEST_LEN-1
+//unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs, int test_codeword,
+//					unsigned char htbl[][9][72], unsigned char rtbl[][9][72], unsigned char dtbl[][8]){
+unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs, int test_codeword){
 	int a, b; // for FOR loop
-  	int bw, i, s, vi;
+  	int i, s, vi;
 	unsigned char bi[MMAX];
 	unsigned char *vec, *p;
 	unsigned char result,rev;
 	unsigned char RepairTr[MMAX][8], ColumnTr[MMAX][8], TargetTr[MMAX];
 
-
- 	bw = 0;
+ 	//bw = 0;
     //Calculate bandwidth using H table
 	//printf("Bandwidth: ");
     for (i = 0; i < block; i++){
 			if (i != j){
-				bw = htbl[i][j][0];
+				bi[i] = h_htbl[i][j][0];
 			}
-			else
-			{
-				continue;
-			}
-			bi[i] = bw;
-			//printf("[%d]: %u  ",i, bi[i]);
-		}
+	}
+
+	//Calculate traces to send to Node j (H table)
+
+	//unsigned char *buffs_p;
 
 
-		//print Cj
-		/*for(i = 0; i <block; i++){
-			printf("\nC_j[%d]: %u",i, *buffs[i]);
-		}
-		printf("\n");*/
-
-		//Calculate traces to send to Node j (H table)
-
-		unsigned char *buffs_p;
-		//printf("\nRepair Traces: \n");
-		for (i = 0; i < block ; i++){
-			 
-			if( i != j){
-				for (a = 0; a < bi[i]; a++){
-					//RepairTr[i][a] = binSum(htbl[i][j][a+1], (int)*buffs[i]);
-
-					bit_field.traceSum = 0;
-
-					buffs_p = binRep(*buffs[i], 8);
-					for(b = 0; b < 8; b++){
-						bit_field.traceSum ^= (htbl[i][j][(a+1)*8+b]*(buffs_p[b]));
-						//printf(" %u x %u ", htbl[i][j][(a+1)*8+b], (buffs_p[b]));
-					}
-
-					RepairTr[i][a] = bit_field.traceSum;
-					
-					free(buffs_p);
-					//printf(" %u ", RepairTr[i][a]);
+	unsigned char buffs_p;
+	//printf("\nRepair Traces: \n");
+	for (i = 0; i < block ; i++)
+	{ 
+		if( i != j){
+			//buffs_p = binRep(buffs[i][test_codeword], 8);
+			for (a = 0; a < bi[i]; a++){
+				buffs_p = buffs[i][test_codeword];
+				bit_field.traceSum = 0;
+				for(b = 0; b < 8; b++){
+					//bit_field.traceSum ^= (h_htbl[i][j][(a+1)*8+b]*(buffs_p[b]));
+					bit_field.traceSum ^= h_htbl[i][j][(a+1)*8+7-b]*(buffs_p & 1);
+					buffs_p = buffs_p >> 1; 
 				}
+				RepairTr[i][a] = bit_field.traceSum;
 			}
-			else
-			{
-				continue;
-			}
-			//printf("\n");
+			//free(buffs_p);
+			
 		}
+		
+	}
+    //for (int i = 1; i <= t; i++){
+     //   vec[t-i] = n & 1;
+    //    n = n >> 1;
+    //}
 
 
 	//Recover node generates Column traces using R table
 	//printf("Column Tr: \n");
-
 	
-    for (i = 0; i < block; i++){
-		int gap = 0;
-		if (i != j){
+    for (i = 0; i < block; i++)
+	{
+		if (i != j)
+		{
 			p = RepairTr[i];
-			
-        	for (s = 0; s < 8; s++){
-				//vi = rtbl[i][j][s];
-				//printf(" vi : %u ", vi);
-				//vec = binRep(vi, htbl[i][j][0]);
-				
-				//Print test BinRep
-				//printf(" Vec [%d] * P[a]: ", s);
-				
+			int gap = 0;
+        	for (s = 0; s < 8; s++)
+			{				
 				result = 0;
-				for(a = 0; a < bi[i]; a++){
-					//result ^= (vec[a]*p[a]);
-					vi = rtbl[i][j][gap];
-					result ^= (vi*p[a]);
+				for(a = 0; a < bi[i]; a++)
+				{
+					vi = h_rtbl[i][j][gap];
+					result ^= vi*p[a];
 					gap++;
-					//printf(" (%u * %u) ^ ", vi, p[a]); // p[a] is the basis, vec is the coef vector
 				}
-				//free(vec);
-
 				ColumnTr[i][s] = result;
-				//printf(" %u ", ColumnTr[i][s]);
-				
-				//printf("\n");
 			}
-			//printf("\n");
     	}
-		else{
-
-			continue;
-		}
 	}
 
 
 	//Construct t Target Traces
 	//printf("\nTarget tr: \n");
-	for (s = 0; s < 8; s++){
+	for (s = 0; s < 8; s++)
+	{
 		bit_field.rh = 0;//0*Z(q)
-		for (i = 0; i < block; i++){
-			if (i != j){
-				bit_field.rh ^= ColumnTr[i][s];
-				//printf(" %u ", ColumnTr[i][s]);
-			}
-			else
+		for (i = 0; i < block; i++)
+		{
+			if (i != j)
 			{
-				continue;
+				bit_field.rh ^= ColumnTr[i][s];
 			}
 		}
-		//printf("\n");
 		TargetTr[s] = bit_field.rh;
-		//printf(" %u |",TargetTr[s]);
 	}
 
 	//printf("\n\n");
 	//Assume that we obtained D table assigned as dtbl
 	rev = 0; //0*Z(q)
-	for(s = 0; s < 8; s++){
-		if(TargetTr[s] != 0){
-			rev ^=dtbl[j][s];
-			//printf(" dtbl[%d]: %d ",s,dtbl[j][s]);
-
-		}
-		else{
-			continue;
-		}
-
+	for(s = 0; s < 8; s++)
+	{
+		rev ^= TargetTr[s]*h_dtbl[j][s];
 	}
-	//printf("\nrev: %u", rev);
-
-	/*if(rev==(*buffs[j]))
-		printf(" TRUE ");
-	else
-		printf(" FALSE ");*/
-
 	return rev;
 }
-
-
 
 
 int main(int argc, char *argv[])
@@ -869,8 +792,9 @@ int main(int argc, char *argv[])
 	u8 *temp_ubuffs[TEST_SOURCES];
 
 	printf("erasure_code_test: %dx%d \n", TEST_SOURCES, TEST_LEN);
-	srand(TEST_SEED);
-
+	//srand(TEST_SEED);
+	srand(time(0));		//to make random data change with different calls
+	
 	// Allocate the arrays
 	for (i = 0; i < TEST_SOURCES; i++) {
 		if (posix_memalign(&buf, 64, TEST_LEN)) {
@@ -907,7 +831,7 @@ int main(int argc, char *argv[])
 	if (m > MMAX || k > KMAX)
 		return -1; //exit
 
-	clock_t tic = clock();
+	//clock_t tic = clock();
 	//clock_t start = clock();
 
 	//printf("RANDOM DATA: \n");
@@ -916,11 +840,15 @@ int main(int argc, char *argv[])
 		{
 			buffs[i][j] = rand();
 
-			/*printf("%u ", buffs[i][j]);B
-			if ((j % TEST_LEN) == TEST_LEN-1)
-			printf("\n");*/
+			//printf("%u ", buffs[i][j]);
+			//if ((j % TEST_LEN) == TEST_LEN-1)
+			//printf("\n");
 		}
 	}
+	
+	//for (i = 0; i < k; i++){
+	//	printf("%u ", *buffs[i]);
+	//}		
 
 	
 	//printf("\n");
@@ -996,9 +924,6 @@ int main(int argc, char *argv[])
 	//printf("Run time (Rpair Trace): %d micro seconds\n",elapsed);
 	printf("-----------------------------------------\n");*/
 	
-
-
-	
 	
 	// Choose random buffers to be in erasure
 	memset(src_in_err, 0, TEST_SOURCES);
@@ -1008,7 +933,30 @@ int main(int argc, char *argv[])
 	//Add errorsposix_memalign
 	gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
 	
+	//BEGINNING OF TRACE REPAIR
+	clock_t start = clock();
+	unsigned char rec;
+	for(int err = 0; err < nerrs; err++){
+		j = src_err_list[err];
+		for(int test_codeword = 0; test_codeword < TEST_LEN; test_codeword++){
+			//rec = repair_trace(9, 9, 9, j, buffs, test_codeword, h_htbl, h_rtbl, h_dtbl);
+			rec = repair_trace(9, 9, 9, j, buffs, test_codeword);
+			if (rec != buffs[j][test_codeword]){
+				printf("ERROR: TraceRepair doesn't match\n");
+				return -1;
+			}
+		}
+	}
+
+	clock_t finish = clock();
 	
+	printf("-----------------------------------------\n");
+    printf("Elapsed (Repair_scheme): %.10f seconds\n", 1.0*((double)(finish - start) / CLOCKS_PER_SEC)/3);
+	//printf("Run time (Rpair Trace): %d micro seconds\n",elapsed);
+	printf("-----------------------------------------\n");
+	//END OF TRACE REPAIR
+	
+	clock_t tic = clock();
 	// Generate decode matrix from encode matrix
 	re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
 				  invert_matrix, decode_index, src_err_list, src_in_err,
@@ -1018,7 +966,8 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	/*printf("\n");
+	//printf("\n");
+	/*
 	//Print error list and non-erasure index
 	printf(" - erase list = ");
 	for (j = 0; j < nerrs; j++)
@@ -1026,8 +975,8 @@ int main(int argc, char *argv[])
 	printf("\n - Index = ");
 	for (p = 0; p < k; p++){
 		printf(" %d", decode_index[p]);
-	}
-
+	}*/
+	/*
 	printf("\n \n");
 	printf("nsrcerrs (number of original data error): %u \n", nsrcerrs);
 	//mean the data are erasured that is in original data. Eg: lost data where<k.
