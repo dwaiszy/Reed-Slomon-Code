@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "repair_scheme_tbl.h": "c"
+        "repair_scheme_tbl.h": "c",
+        "xstring": "c",
+        "EQUATION.C": "cpp"
     }
 }

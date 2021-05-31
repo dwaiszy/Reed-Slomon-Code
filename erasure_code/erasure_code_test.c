@@ -41,10 +41,6 @@
 #define TEST_SOURCES 127
 #define TEST_LEN 100000
 #define BIN_LEN 8
-
-#define SetBit(A,k)     ( A[(k/8)] |= (1 << (k%8)) )
-#define ClearBit(A,k)   ( A[(k/8)] &= ~(1 << (k%8)) )
-#define TestBit(A,k)    ( A[(k/8)] & (1 << (k%8)) )
 //100.000 = 1.2->1.5s
 //0.015
 //end add
@@ -158,6 +154,72 @@ void gf_gen_cauchy1_matrix(unsigned char *a, int m, int k)
 	for (i = k; i < m; i++)
 		for (j = 0; j < k; j++)
 			*p++ = gf_inv(i ^ j);
+
+}
+
+
+
+unsigned char gf_mul_f16(unsigned char a, unsigned char b)
+{
+#ifndef GF_LARGE_TABLES
+	int i;
+
+	if ((a == 0) || (b == 0))
+		return 0;
+
+	return gff_base_f16[(i = gflog_base_f16[a] + gflog_base_f16[b]) > 14 ? i - 15 : i];
+#else
+	return gf_mul_table_base[b * 256 + a];
+#endif
+}
+
+unsigned char gf_inv_f16(unsigned char a)
+{
+#ifndef GF_LARGE_TABLES
+	if (a == 0)
+		return 0;
+
+	return gff_base_f16[15 - gflog_base_f16[a]];
+#else
+	return gf_inv_table_base[a];
+#endif
+}
+
+
+void gf_gen_rs_matrix_f16(unsigned char *a, int m, int k)
+{
+	int i, j;
+	unsigned char p, gen = 1;
+
+	memset(a, 0, k * m);
+	for (i = 0; i < k; i++)
+		a[k * i + i] = 1;
+
+	for (i = k; i < m; i++) {
+		p = 1;
+		for (j = 0; j < k; j++) {
+			a[k * i + j] = p;
+			p = gf_mul_f16(p, gen);
+		}
+		gen = gf_mul_f16(gen, 2);
+	}
+}
+
+void gf_gen_cauchy1_matrix_f16(unsigned char *a, int m, int k)
+{
+	int i, j;
+	unsigned char *p;
+
+	// Identity matrix in high position
+	memset(a, 0, k * m);
+	for (i = 0; i < k; i++)
+		a[k * i + i] = 1;
+
+	// For the rest choose 1/(i + j) | i != j
+	p = &a[k * k];
+	for (i = k; i < m; i++)
+		for (j = 0; j < k; j++)
+			*p++ = gf_inv_f16(i ^ j);
 
 }
 
@@ -676,7 +738,7 @@ unsigned char binSum( unsigned char x, int y)
 //					unsigned char htbl[][9][72], unsigned char rtbl[][9][72], unsigned char dtbl[][8]){
 unsigned char repair_trace(int block, int row, int column, int j, unsigned char **buffs, int test_codeword){
 	int a, b; // for FOR loop
-  	int i, s, vi;
+  	unsigned char i, s, vi;
 	unsigned char bi[MMAX];
 	unsigned char *vec, *p;
 	unsigned char result,rev;
@@ -691,32 +753,29 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 			}
 	}
 
-	//Calculate traces to send to Node j (H table)
+		//Calculate traces to send to Node j (H table)
 
-	//unsigned char *buffs_p;
-
-
-	unsigned char buffs_p;
-	//printf("\nRepair Traces: \n");
-	for (i = 0; i < block ; i++)
-	{ 
-		if( i != j){
-			//buffs_p = binRep(buffs[i][test_codeword], 8);
-			for (a = 0; a < bi[i]; a++){
-				buffs_p = buffs[i][test_codeword];
-				bit_field.traceSum = 0;
-				for(b = 0; b < 8; b++){
-					//bit_field.traceSum ^= (h_htbl[i][j][(a+1)*8+b]*(buffs_p[b]));
-					bit_field.traceSum ^= h_htbl[i][j][(a+1)*8+7-b]*(buffs_p & 1);
-					buffs_p = buffs_p >> 1; 
+		//unsigned char *buffs_p;
+		unsigned char buffs_p;
+		//printf("\nRepair Traces: \n");
+		for (i = 0; i < block ; i++){ 
+			if( i != j){
+				//buffs_p = binRep(buffs[i][test_codeword], 8);
+				for (a = 0; a < bi[i]; a++){
+					buffs_p = buffs[i][test_codeword];
+					bit_field.traceSum = 0;
+					for(b = 0; b < 8; b++){
+						//bit_field.traceSum ^= (h_htbl[i][j][(a+1)*8+b]*(buffs_p[b]));
+						bit_field.traceSum ^= h_htbl[i][j][(a+1)*8+7-b]*(buffs_p & 1);
+						buffs_p = buffs_p >> 1; 
+					}
+					RepairTr[i][a] = bit_field.traceSum;
+                    printf(" %u", RepairTr[i][a]);
 				}
-				RepairTr[i][a] = bit_field.traceSum;
+				//free(buffs_p);
 			}
-			//free(buffs_p);
-			
 		}
-		
-	}
+
     //for (int i = 1; i <= t; i++){
      //   vec[t-i] = n & 1;
     //    n = n >> 1;
@@ -725,18 +784,17 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 
 	//Recover node generates Column traces using R table
 	//printf("Column Tr: \n");
+
 	
-    for (i = 0; i < block; i++)
-	{
-		if (i != j)
-		{
+
+
+    for (i = 0; i < block; i++){
+		if (i != j){
 			p = RepairTr[i];
-			int gap = 0;
-        	for (s = 0; s < 8; s++)
-			{				
+			unsigned char gap = 0;
+        	for (s = 0; s < 8; s++){				
 				result = 0;
-				for(a = 0; a < bi[i]; a++)
-				{
+				for(a = 0; a < bi[i]; a++){
 					vi = h_rtbl[i][j][gap];
 					result ^= vi*p[a];
 					gap++;
@@ -749,13 +807,10 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 
 	//Construct t Target Traces
 	//printf("\nTarget tr: \n");
-	for (s = 0; s < 8; s++)
-	{
+	for (s = 0; s < 8; s++){
 		bit_field.rh = 0;//0*Z(q)
-		for (i = 0; i < block; i++)
-		{
-			if (i != j)
-			{
+		for (i = 0; i < block; i++){
+			if (i != j){
 				bit_field.rh ^= ColumnTr[i][s];
 			}
 		}
@@ -765,8 +820,7 @@ unsigned char repair_trace(int block, int row, int column, int j, unsigned char 
 	//printf("\n\n");
 	//Assume that we obtained D table assigned as dtbl
 	rev = 0; //0*Z(q)
-	for(s = 0; s < 8; s++)
-	{
+	for(s = 0; s < 8; s++){
 		rev ^= TargetTr[s]*h_dtbl[j][s];
 	}
 	return rev;
@@ -838,7 +892,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < k; i++){ //i is the dataword lengths
 		for (j = 0; j < TEST_LEN; j++)
 		{
-			buffs[i][j] = rand();
+			buffs[i][j] = rand()%50;
 
 			//printf("%u ", buffs[i][j]);
 			//if ((j % TEST_LEN) == TEST_LEN-1)
@@ -924,6 +978,9 @@ int main(int argc, char *argv[])
 	//printf("Run time (Rpair Trace): %d micro seconds\n",elapsed);
 	printf("-----------------------------------------\n");*/
 	
+
+
+	
 	
 	// Choose random buffers to be in erasure
 	memset(src_in_err, 0, TEST_SOURCES);
@@ -934,13 +991,14 @@ int main(int argc, char *argv[])
 	gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
 	
 	//BEGINNING OF TRACE REPAIR
-	clock_t start = clock();
+	/*clock_t start = clock();
 	unsigned char rec;
 	for(int err = 0; err < nerrs; err++){
 		j = src_err_list[err];
 		for(int test_codeword = 0; test_codeword < TEST_LEN; test_codeword++){
 			//rec = repair_trace(9, 9, 9, j, buffs, test_codeword, h_htbl, h_rtbl, h_dtbl);
 			rec = repair_trace(9, 9, 9, j, buffs, test_codeword);
+            printf(" %u ", rec);
 			if (rec != buffs[j][test_codeword]){
 				printf("ERROR: TraceRepair doesn't match\n");
 				return -1;
@@ -953,7 +1011,7 @@ int main(int argc, char *argv[])
 	printf("-----------------------------------------\n");
     printf("Elapsed (Repair_scheme): %.10f seconds\n", 1.0*((double)(finish - start) / CLOCKS_PER_SEC)/3);
 	//printf("Run time (Rpair Trace): %d micro seconds\n",elapsed);
-	printf("-----------------------------------------\n");
+	printf("-----------------------------------------\n");*/
 	//END OF TRACE REPAIR
 	
 	clock_t tic = clock();
@@ -1016,7 +1074,7 @@ int main(int argc, char *argv[])
 	// Its order must be the same as the order
 	// to generate matrix b in gf_gen_decode_matrix
 
-	//printf("Recovery index: ");
+	printf("Recovery index: ");
 	for (i = 0; i < k; i++) {
 		recov[i] = buffs[decode_index[i]];
 		//printf("%u ", *recov[i]);
@@ -1080,433 +1138,5 @@ int main(int argc, char *argv[])
 	//printf("\nEnter j: ");
 	//scanf("%d", &j);
 
-	/*m = 9;
-	k = 5;
-	if (m > MMAX || k > KMAX)
-		return -1;
-
-	// Make random data
-	for (i = 0; i < k; i++)
-		for (j = 0; j < TEST_LEN; j++)
-			buffs[i][j] = rand();
-
-	// The matrix generated by gf_gen_cauchy1_matrix
-	// is always invertable.
-	gf_gen_cauchy1_matrix(encode_matrix, m, k);
-
-	// Generate g_tbls from encode matrix encode_matrix
-	ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
-
-	// Perform matrix dot_prod for EC encoding
-	// using g_tbls from encode matrix encode_matrix
-	ec_encode_data(TEST_LEN, k, m - k, g_tbls, buffs, &buffs[k]);  //&buff[k] = encode_matrix
-
-	// Choose random buffers to be in erasure
-	memset(src_in_err, 0, TEST_SOURCES);
-	gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-
-	// Generate decode matrix
-	re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
-				  invert_matrix, decode_index, src_err_list, src_in_err,
-				  nerrs, nsrcerrs, k, m);
-	if (re != 0) {
-		printf("Fail to gf_gen_decode_matrix\n");
-		return -1;
-	}
-	// Pack recovery array as list of valid sources
-	// Its order must be the same as the order
-	// to generate matrix b in gf_gen_decode_matrix
-	for (i = 0; i < k; i++) {
-		recov[i] = buffs[decode_index[i]];
-	}
-
-	// Recover data
-	ec_init_tables(k, nerrs, decode_matrix, g_tbls);
-	ec_encode_data(TEST_LEN, k, nerrs, g_tbls, recov, &temp_buffs[k]);
-	for (i = 0; i < nerrs; i++) {
-
-		if (0 != memcmp(temp_buffs[k + i], buffs[src_err_list[i]], TEST_LEN)) {
-			printf("Fail error recovery (%d, %d, %d)\n", m, k, nerrs);
-			printf(" - erase list = ");
-			for (j = 0; j < nerrs; j++)
-				printf(" %d", src_err_list[j]);
-			printf(" - Index = ");
-			for (p = 0; p < k; p++)
-				printf(" %d", decode_index[p]);
-			printf("\nencode_matrix:\n");
-			dump_u8xu8((u8 *) encode_matrix, m, k);
-			printf("inv b:\n");
-			dump_u8xu8((u8 *) invert_matrix, k, k);
-			printf("\ndecode_matrix:\n");
-			dump_u8xu8((u8 *) decode_matrix, m, k);
-			printf("recov %d:", src_err_list[i]);
-			dump(temp_buffs[k + i], 25);
-			printf("orig   :");
-			dump(buffs[src_err_list[i]], 25);
-			return -1;
-		}
-	}
-
-	// Do more random tests
-	for (rtest = 0; rtest < RANDOMS; rtest++) {
-		while ((m = (rand() % MMAX)) < 2) ;
-		while ((k = (rand() % KMAX)) >= m || k < 1) ;
-
-		if (m > MMAX || k > KMAX)
-			continue;
-
-		// Make random data
-		for (i = 0; i < k; i++)
-			for (j = 0; j < TEST_LEN; j++)
-				buffs[i][j] = rand();
-
-		// The matrix generated by gf_gen_cauchy1_matrix
-		// is always invertable.
-		gf_gen_cauchy1_matrix(encode_matrix, m, k);
-
-		// Make parity vects
-		// Generate g_tbls from encode matrix a
-		ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
-		// Perform matrix dot_prod for EC encoding
-		// using g_tbls from encode matrix a
-		ec_encode_data(TEST_LEN, k, m - k, g_tbls, buffs, &buffs[k]);
-
-		// Random errors
-		memset(src_in_err, 0, TEST_SOURCES);
-		gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-
-		// Generate decode matrix
-		re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
-					  invert_matrix, decode_index, src_err_list,
-					  src_in_err, nerrs, nsrcerrs, k, m);
-		if (re != 0) {
-			printf("Fail to gf_gen_decode_matrix\n");
-			return -1;
-		}
-		// Pack recovery array as list of valid sources
-		// Its order must be the same as the order
-		// to generate matrix b in gf_gen_decode_matrix
-		for (i = 0; i < k; i++) {
-			recov[i] = buffs[decode_index[i]];
-		}
-
-		// Recover data
-		ec_init_tables(k, nerrs, decode_matrix, g_tbls);
-		ec_encode_data(TEST_LEN, k, nerrs, g_tbls, recov, &temp_buffs[k]);
-
-		for (i = 0; i < nerrs; i++) {
-
-			if (0 != memcmp(temp_buffs[k + i], buffs[src_err_list[i]], TEST_LEN)) {
-				printf("Fail error recovery (%d, %d, %d) - ", m, k, nerrs);
-				printf(" - erase list = ");
-				for (j = 0; j < nerrs; j++)
-					printf(" %d", src_err_list[j]);
-				printf(" - Index = ");
-				for (p = 0; p < k; p++)
-					printf(" %d", decode_index[p]);
-				printf("\nencode_matrix:\n");
-				dump_u8xu8((u8 *) encode_matrix, m, k);
-				printf("inv b:\n");
-				dump_u8xu8((u8 *) invert_matrix, k, k);
-				printf("\ndecode_matrix:\n");
-				dump_u8xu8((u8 *) decode_matrix, m, k);
-				printf("orig data:\n");
-				dump_matrix(buffs, m, 25);
-				printf("orig   :");
-				dump(buffs[src_err_list[i]], 25);
-				printf("recov %d:", src_err_list[i]);
-				dump(temp_buffs[k + i], 25);
-				return -1;
-			}
-		}
-		putchar('.');
-	}
-
-	// Run tests at end of buffer for Electric Fence
-	k = 16;
-	align = (LEN_ALIGN_CHK_B != 0) ? 1 : 16;
-	if (k > KMAX)
-		return -1;
-
-	for (rows = 1; rows <= 16; rows++) {
-		m = k + rows;
-		if (m > MMAX)
-			return -1;
-
-		// Make random data
-		for (i = 0; i < k; i++)
-			for (j = 0; j < TEST_LEN; j++)
-				buffs[i][j] = rand();
-
-		for (size = EFENCE_TEST_MIN_SIZE; size <= EFENCE_TEST_MAX_SIZE; size += align) {
-			for (i = 0; i < m; i++) {	// Line up TEST_SIZE from end
-				efence_buffs[i] = buffs[i] + TEST_LEN - size;
-			}
-
-			// The matrix generated by gf_gen_cauchy1_matrix
-			// is always invertable.
-			gf_gen_cauchy1_matrix(encode_matrix, m, k);
-
-			// Make parity vects
-			// Generate g_tbls from encode matrix a
-			ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
-			// Perform matrix dot_prod for EC encoding
-			// using g_tbls from encode matrix a
-			ec_encode_data(size, k, m - k, g_tbls, efence_buffs, &efence_buffs[k]);
-
-			// Random errors
-			memset(src_in_err, 0, TEST_SOURCES);
-			gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-
-			// Generate decode matrix
-			re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
-						  invert_matrix, decode_index, src_err_list,
-						  src_in_err, nerrs, nsrcerrs, k, m);
-			if (re != 0) {
-				printf("Fail to gf_gen_decode_matrix\n");
-				return -1;
-			}
-			// Pack recovery array as list of valid sources
-			// Its order must be the same as the order
-			// to generate matrix b in gf_gen_decode_matrix
-			for (i = 0; i < k; i++) {
-				recov[i] = efence_buffs[decode_index[i]];
-			}
-
-			// Recover data
-			ec_init_tables(k, nerrs, decode_matrix, g_tbls);
-			ec_encode_data(size, k, nerrs, g_tbls, recov, &temp_buffs[k]);
-
-			for (i = 0; i < nerrs; i++) {
-
-				if (0 !=
-				    memcmp(temp_buffs[k + i], efence_buffs[src_err_list[i]],
-					   size)) {
-					printf("Efence: Fail error recovery (%d, %d, %d)\n", m,
-					       k, nerrs);
-
-					printf("size = %d\n", size);
-
-					printf("Test erase list = ");
-					for (j = 0; j < nerrs; j++)
-						printf(" %d", src_err_list[j]);
-					printf(" - Index = ");
-					for (p = 0; p < k; p++)
-						printf(" %d", decode_index[p]);
-					printf("\nencode_matrix:\n");
-					dump_u8xu8((u8 *) encode_matrix, m, k);
-					printf("inv b:\n");
-					dump_u8xu8((u8 *) invert_matrix, k, k);
-					printf("\ndecode_matrix:\n");
-					dump_u8xu8((u8 *) decode_matrix, m, k);
-
-					printf("recov %d:", src_err_list[i]);
-					dump(temp_buffs[k + i], align);
-					printf("orig   :");
-					dump(efence_buffs[src_err_list[i]], align);
-					return -1;
-				}
-			}
-		}
-
-	}
-
-	// Test rand ptr alignment if available
-
-	for (rtest = 0; rtest < RANDOMS; rtest++) {
-		while ((m = (rand() % MMAX)) < 2) ;
-		while ((k = (rand() % KMAX)) >= m || k < 1) ;
-
-		if (m > MMAX || k > KMAX)
-			continue;
-
-		size = (TEST_LEN - PTR_ALIGN_CHK_B) & ~15;
-
-		offset = (PTR_ALIGN_CHK_B != 0) ? 1 : PTR_ALIGN_CHK_B;
-		// Add random offsets
-		for (i = 0; i < m; i++) {
-			memset(buffs[i], 0, TEST_LEN);	// zero pad to check write-over
-			memset(temp_buffs[i], 0, TEST_LEN);	// zero pad to check write-over
-			ubuffs[i] = buffs[i] + (rand() & (PTR_ALIGN_CHK_B - offset));
-			temp_ubuffs[i] = temp_buffs[i] + (rand() & (PTR_ALIGN_CHK_B - offset));
-		}
-
-		for (i = 0; i < k; i++)
-			for (j = 0; j < size; j++)
-				ubuffs[i][j] = rand();
-
-		// The matrix generated by gf_gen_cauchy1_matrix
-		// is always invertable.
-		gf_gen_cauchy1_matrix(encode_matrix, m, k);
-
-		// Make parity vects
-		// Generate g_tbls from encode matrix a
-		ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
-		// Perform matrix dot_prod for EC encoding
-		// using g_tbls from encode matrix a
-		ec_encode_data(size, k, m - k, g_tbls, ubuffs, &ubuffs[k]);
-
-		// Random errors
-		memset(src_in_err, 0, TEST_SOURCES);
-		gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-
-		// Generate decode matrix
-		re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
-					  invert_matrix, decode_index, src_err_list,
-					  src_in_err, nerrs, nsrcerrs, k, m);
-		if (re != 0) {
-			printf("Fail to gf_gen_decode_matrix\n");
-			return -1;
-		}
-		// Pack recovery array as list of valid sources
-		// Its order must be the same as the order
-		// to generate matrix b in gf_gen_decode_matrix
-		for (i = 0; i < k; i++) {
-			recov[i] = ubuffs[decode_index[i]];
-		}
-
-		// Recover data
-		ec_init_tables(k, nerrs, decode_matrix, g_tbls);
-		ec_encode_data(size, k, nerrs, g_tbls, recov, &temp_ubuffs[k]);
-
-		for (i = 0; i < nerrs; i++) {
-
-			if (0 != memcmp(temp_ubuffs[k + i], ubuffs[src_err_list[i]], size)) {
-				printf("Fail error recovery (%d, %d, %d) - ", m, k, nerrs);
-				printf(" - erase list = ");
-				for (j = 0; j < nerrs; j++)
-					printf(" %d", src_err_list[j]);
-				printf(" - Index = ");
-				for (p = 0; p < k; p++)
-					printf(" %d", decode_index[p]);
-				printf("\nencode_matrix:\n");
-				dump_u8xu8((unsigned char *)encode_matrix, m, k);
-				printf("inv b:\n");
-				dump_u8xu8((unsigned char *)invert_matrix, k, k);
-				printf("\ndecode_matrix:\n");
-				dump_u8xu8((unsigned char *)decode_matrix, m, k);
-				printf("orig data:\n");
-				dump_matrix(ubuffs, m, 25);
-				printf("orig   :");
-				dump(ubuffs[src_err_list[i]], 25);
-				printf("recov %d:", src_err_list[i]);
-				dump(temp_ubuffs[k + i], 25);
-				return -1;
-			}
-		}
-
-		// Confirm that padding around dests is unchanged
-		memset(temp_buffs[0], 0, PTR_ALIGN_CHK_B);	// Make reference zero buff
-
-		for (i = 0; i < m; i++) {
-
-			offset = ubuffs[i] - buffs[i];
-
-			if (memcmp(buffs[i], temp_buffs[0], offset)) {
-				printf("Fail rand ualign encode pad start\n");
-				return -1;
-			}
-			if (memcmp
-			    (buffs[i] + offset + size, temp_buffs[0],
-			     PTR_ALIGN_CHK_B - offset)) {
-				printf("Fail rand ualign encode pad end\n");
-				return -1;
-			}
-		}
-
-		for (i = 0; i < nerrs; i++) {
-
-			offset = temp_ubuffs[k + i] - temp_buffs[k + i];
-			if (memcmp(temp_buffs[k + i], temp_buffs[0], offset)) {
-				printf("Fail rand ualign decode pad start\n");
-				return -1;
-			}
-			if (memcmp
-			    (temp_buffs[k + i] + offset + size, temp_buffs[0],
-			     PTR_ALIGN_CHK_B - offset)) {
-				printf("Fail rand ualign decode pad end\n");
-				return -1;
-			}
-		}
-
-		putchar('.');
-	}
-
-	// Test size alignment
-
-	align = (LEN_ALIGN_CHK_B != 0) ? 13 : 16;
-
-	for (size = TEST_LEN; size > 0; size -= align) {
-		while ((m = (rand() % MMAX)) < 2) ;
-		while ((k = (rand() % KMAX)) >= m || k < 1) ;
-
-		if (m > MMAX || k > KMAX)
-			continue;
-
-		for (i = 0; i < k; i++)
-			for (j = 0; j < size; j++)
-				buffs[i][j] = rand();
-
-		// The matrix generated by gf_gen_cauchy1_matrix
-		// is always invertable.
-		gf_gen_cauchy1_matrix(encode_matrix, m, k);
-
-		// Make parity vects
-		// Generate g_tbls from encode matrix a
-		ec_init_tables(k, m - k, &encode_matrix[k * k], g_tbls);
-		// Perform matrix dot_prod for EC encoding
-		// using g_tbls from encode matrix a
-		ec_encode_data(size, k, m - k, g_tbls, buffs, &buffs[k]);
-
-		// Random errors
-		memset(src_in_err, 0, TEST_SOURCES);
-		gen_err_list(src_err_list, src_in_err, &nerrs, &nsrcerrs, k, m);
-		// Generate decode matrix
-		re = gf_gen_decode_matrix(encode_matrix, decode_matrix,
-					  invert_matrix, decode_index, src_err_list,
-					  src_in_err, nerrs, nsrcerrs, k, m);
-		if (re != 0) {
-			printf("Fail to gf_gen_decode_matrix\n");
-			return -1;
-		}
-		// Pack recovery array as list of valid sources
-		// Its order must be the same as the order
-		// to generate matrix b in gf_gen_decode_matrix
-		for (i = 0; i < k; i++) {
-			recov[i] = buffs[decode_index[i]];
-		}
-
-		// Recover data
-		ec_init_tables(k, nerrs, decode_matrix, g_tbls);
-		ec_encode_data(size, k, nerrs, g_tbls, recov, &temp_buffs[k]);
-
-		for (i = 0; i < nerrs; i++) {
-
-			if (0 != memcmp(temp_buffs[k + i], buffs[src_err_list[i]], size)) {
-				printf("Fail error recovery (%d, %d, %d) - ", m, k, nerrs);
-				printf(" - erase list = ");
-				for (j = 0; j < nerrs; j++)
-					printf(" %d", src_err_list[j]);
-				printf(" - Index = ");
-				for (p = 0; p < k; p++)
-					printf(" %d", decode_index[p]);
-				printf("\nencode_matrix:\n");
-				dump_u8xu8((unsigned char *)encode_matrix, m, k);
-				printf("inv b:\n");
-				dump_u8xu8((unsigned char *)invert_matrix, k, k);
-				printf("\ndecode_matrix:\n");
-				dump_u8xu8((unsigned char *)decode_matrix, m, k);
-				printf("orig data:\n");
-				dump_matrix(buffs, m, 25);
-				printf("orig   :");
-				dump(buffs[src_err_list[i]], 25);
-				printf("recov %d:", src_err_list[i]);
-				dump(temp_buffs[k + i], 25);
-				return -1;
-			}
-		}
-	}
-
-	printf("done EC tests: Pass\n");*/
 	return 0;
 }

@@ -70,6 +70,34 @@ unsigned char gf_inv(unsigned char a)
 #endif
 }
 
+
+unsigned char gf_mul_f16(unsigned char a, unsigned char b)
+{
+#ifndef GF_LARGE_TABLES
+	int i;
+
+	if ((a == 0) || (b == 0))
+		return 0;
+
+	return gff_base[(i = gflog_base[a] + gflog_base[b]) > 14 ? i - 15 : i];
+#else
+	return gf_mul_table_base[b * 256 + a];
+#endif
+}
+
+unsigned char gf_inv_f16(unsigned char a)
+{
+#ifndef GF_LARGE_TABLES
+	if (a == 0)
+		return 0;
+
+	return gff_base[15 - gflog_base[a]];
+#else
+	return gf_inv_table_base[a];
+#endif
+}
+
+
 void gf_gen_rs_matrix(unsigned char *a, int m, int k)
 {
 	int i, j;
@@ -103,7 +131,7 @@ void gf_gen_cauchy1_matrix(unsigned char *a, int m, int k)
 	p = &a[k * k];
 	for (i = k; i < m; i++)
 		for (j = 0; j < k; j++)
-			*p++ = gf_inv(i ^ j);
+			*p++ = gf_inv_f16(i ^ j);
 
 }
 
